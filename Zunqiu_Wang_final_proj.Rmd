@@ -1,0 +1,192 @@
+---
+title: "Zunqiu_Wang_final_proj"
+author: "Zunqiu Wang"
+date: "4/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Intoduction
+
+The advent of next-generation sequencing (NGS) has advanced the medical research by conducting genomic studies that results in enormous and complex data sets, which require appropriate computational tools to analyze and draw biological insights (1). Specifically, RNA-seq has revolutionized the approach in transcriptomic profiling to retrive high-reolution information and it provides relative accurate analyses in gene expression among various organisms across different conditions (2). The dataset was from the publication from 2019 by Jiao et al (4). In that study, the author performed RNA-seqs of control and si-NRDE2-treated MDA-MB-231 cells, which is a human  triple-negative breast cancer cell line (10), in triplicate using Illumina NextSeq500 sequencing machine to convey differential gene expression (3). Here, in this report, I will demonstrate a workflow that is recommended for Differentially gene expression (DGE) analysis (3). The pipeline encompases preprocessing steps, including fastp (0.20.1) (5), fastQC (0.11.9) (6), and MultiQC (1.9) (7) for quality control, and generating transcript quantification through Salmon (1.4.0) (8). Next, gene quantification outputs were converted to feature counts data through tximport (1.18.0) (9) for statistical analysis with DESeq2 (1.30.1) (11). Using GATK NormalizeFasta (4.1.9.0) (12), I normalized the downloaded reference genome. 
+
+# Material
+
+2016 Macbook Pro and programming console in terminal and R.
+
+# Method * indicates extra steps
+
+### Preprocessing and quality control
+
+First, implement fastp (0.20.1) (5) to trim by setting appropriate arguments to automatically remove reads fewer than 50 (avoid read through problems for short reads), adapters, and polyG introduced on NextSeq platforms due to G nucleotide being not color fluorescent in a 2 channel of fluorescent system, producing inaccurate base calling in tails.
+Next, run fastQC (0.11.9) (6) and MultiQC (1.9) (7) after creating a script finding all fastqc files recursively and write file paths to txt. The output of MultiQC generated a HTML report for multiple samples to illustrate and visualize summary graphs and tables to quickly assess the quality of data. Upon inspection, there were 3 warnings/fails. First of all, per base sequence content failed due to random selection of primers, which was a common situation for RNA-seq libraries regarding this bias and would not negatively impact expression measurement (16). Another warning was high duplication level, which could result from PCR over amplification. The other one associated with unequal sequence length distribution.
+
+### Salmon
+
+Following quality control, the reference genome downloaded as compressed Fasta format were  normalized by GATAK (4.1.9.0) (12) and then were imported in Salmon (1.4.0) (8) for generating index files before conducting mapping-based mode to quantify processed sample reads with appropriate settings. The output files contained but not limited to lib_format_counts.json and quant.sf files. The library type inferred from the former most was SF meaning stranded reads came from the reverse strand. The latter contained essential quantification results for DGE analysis in a tab-delimited table.
+
+### tximport
+
+Prior to to DGE analysis, a critical step was performed to convert TPMs to gene counts in R by importing transcript-level abundance estimates (TPMs) and transcript length estimate in quant.sf files from quantification step through tximport (1.18.0) (9) package along with a tx2gene mapping file that contained transcript id in column 1 and its parent gene id in column 2 separated by comma.
+
+### DESeq2
+
+Create the DESEqDataSet object followed by filtering genes whose counts are more than baseline of 10 reads per gene. After this step, exploratory data analysis was carried out after regularized log2 transformation of normalized counts to assess outliers and sources of variation including batch effect in the data for visualization purpose, which involved PCA, *hierarchical clustering, and *heatmap. Once the data indicated only treatment, which was the original study design, accounted for sources of variation, a single wrapper function DESeq was conducted, including unbiased normalization to generalized linear model fit for each gene followed by generating a dispersion-by-mean plot to determine fit of the dispersion estimates using default parametric method. Producing a result table was one of the most crucial steps in the RNA-seq analysis workflow, and it was the output from Wald test by creating contrast on log2 foldchanges between experimental conditions followed by a report of shrunken log fold-change estimate of genes with ashr type for low counts or high dispersion values to retrieve more accurate estimates, which was then illustrated by a MA plot. In order to control false positives, false discovery rate (FDR) < 0.05 of padj values in result table was set for the following DGE analysis, where multiple test correction with Benjamini-Hochberg method was performed. To better visualize DGE results, some helpful plots are generated including but not limited to a raw p-value histogram to assess shape of p-value distribution, a volcano plot to visualize both statistically and biologically significant differentially expressed genes based on defined threshold on padj and log2foldchange values *annotated with human genome database according to ESEMBL ID and gene symbol. 
+
+*extra steps
+
+# Results
+
+### Sample PCA
+
+
+<center>
+
+![Figure 1 Sample PCA](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/final_proj_PCA.png){width=60%}
+
+</center>
+
+Essentially, PCA could be used to check similarity between sample replicates and to make sure majority source of variation is the experimental condition. In additon, it helps to identify outliers and batch effects.
+In the above PCA plot, it can be interpreted that at sample level QC conditions are driving the variation on PC1 and PC2 while same condition should be expected to cluster together with an exception of one treated sample is far in the right corner. It appears to be existing batch effects.
+
+### Hierarchical cluster plot and heatmap
+
+<center>
+
+![Figure 2 sample Hierarchical Cluster](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/final_proj_hcluster.png){width=60%}
+
+</center>
+
+<center>
+
+![Figure 3 top 20 gene sample Heatmap](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/heatmap.png){width=60%} 
+
+</center>
+
+<center>
+
+![Figure 4 Sample Heatmap](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/heatmap_pair.png){width=60%} 
+
+</center>
+The figure 2 displays the sample grouping and figure 3 further examines gene expression of top 20 genes across 6 samples for the consistency within same condition. Consistent with previous interpretation, figure 4 displays correlation of gene expression for all pairwise combinations of samples.
+
+### Dispersion-mean plot
+
+<center>
+
+![Figure 5 Dispersion-mean plot](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/disp_para.png){width=60%} 
+
+</center>
+
+In the above figure, it demonstrates the results after five serial steps to accurately determine DE genes. Following estimate size factors, gene-wise dispersion estimate (black dots)  is produced, where DESeq2 incorporates measurement of dispersion to account for the fact that variance changes with mean expression level. In the next step, a fit curve (red line) is displayed based on the idea that there should be a line of expected dispersion values from distribution of genes. As a result, a shrinkage method on black dots is applied towards fitted line to output blue dots, which suggests that it is a good fit for DESeq2 model. 
+
+### MA plot
+
+<center>
+
+![Figure 6 MA plot](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/MA_shrunken.png){width=60%} 
+
+</center>
+
+Figure 6 is useful to explore the mean of normalized counts against log fold change with shrinkage applied to produce much smaller estimate in this case, which filters noisy background from lowly expressed genes with high fold change.
+
+### Raw p-value histogram
+
+<center>
+
+![Figure 7 Raw p-value Histogram](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/p_value_histogram_after_shrunk.png){width=60%} 
+
+</center>
+
+As shown above, the shape is skewed towards left, which indicates an enrichment of low p-value and thus is expected if there are large number of classes of differentially expressed genes between treatment and control.
+
+
+### total number of reads and the mapping rate for each sample
+
+```{r, echo=FALSE, eval=TRUE}
+library(gt)
+library(dplyr)
+
+tb1 <- read.table("/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/reads_map_rate.table.csv", header = T)
+tb1 %>% gt() %>% tab_header(title="Table 1 total number of reads and the mapping rate")
+```
+
+Overall, the mapping rate is high suggesting that kmer length is appropriate.
+
+### total number for statistically significant genes at FDR<0.05 and biologically relevant differentially expressed genes with a change in gene expression of two-fold or greater
+
+```{r, echo=FALSE, eval=TRUE}
+library(gt)
+library(dplyr)
+
+tb2 <- read.table("/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/num.sig.df.csv", header = T)
+tb2 %>% gt() %>% tab_header(title="Table 2 total number for statistically significant genes at FDR<0.05 and biologically relevant differentially expressed genes with a change in gene expression of two-fold or greater")
+```                              
+                              
+### 10 most highly significant differentially expressed genes                               
+                              
+```{r, echo=FALSE, eval=TRUE}
+library(gt)
+library(dplyr)
+
+tb3 <- read.table("/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/no.na.res.shrunkOrdered.top.10.df.csv", header = T)
+tb3 %>% gt() %>% tab_header(title="Table 3 10 most highly significant differentially expressed genes")
+```
+
+### Most highly significant differentially expressed genes
+
+<center>
+
+![Figure 8 Bar plot of most highly significant differentially expressed genes](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/Significant_differentially_expressed_genes.png){width=60%} 
+
+</center>
+
+The above figure summarized the distribution of genes in response to treatments after filtering non significant genes defined as FDR>0.05 and change of gene expression less than two-fold. From contrast argument in result function, we set control in the numerator and treatment in the denominator of log2FoldChange. The negative lfc meant upregulated expression of a particular gene after treatment while positive lfc suggested downregulation.
+
+### Volcano plot of all genes and DE genes alone
+
+<center>
+
+![Figure 8 Volcano plot of all genes](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/volcano_plot.png){width=60%} 
+
+</center>
+
+Note the above volcano plot, it illustrates distribution of all genes with its color labeled DE state. 
+
+<center>
+
+![Figure 8 Volcano plot of DE genes](/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/final.proj/DESeq2_parts/volcano_plot_only_DE.png){width=60%} 
+
+</center>
+
+Only showing 77 DE genes missing 4 genes (ENSG00000286001, ENSG00000269001, ENSG00000111780, ENSG00000258466), and it is probably due to missing associated gene symbol/Ensembl id in the database I use.
+
+# Discution
+
+The results presented above the gene NRDE2 in response to RNAi silencing revealed a promising effect on DGE that is worthwhile to be further investigated in the hope of discovering other gene regulation networks and their associated functions during the course of cancer development impacted by the knock down NRDE2. Provided with adoption of expression data, we could develop precise therapeutic drug target for various stages of cancer in conjunction with clinical trials (13). One advantage of is that Salmon (7) conducts selective alignment and quantification simultaneously dramatically out performs raw count-based tools by correcting bias in quantifying transcript abundance that isoform lengths could differ at the same level of gene expression (14) and demonstrate a robust estimate with a wicked speed.
+In Bioconductor, DESeq2 (9) provides a robust pipeline for DGE analysis by controlling FDR to calculate adjusted p value to solve multiple tests problem. It, on the other hand, suffers one drawback where the counts are not normalized with regards to transcript lengths based on the assumption that transcript usage is retained constant. 
+Overall, the execution of Salmon + tximport + DESeq2 was following the standard pipeline I learnt in the class, which accounted for differential transcript usage (DTU) (15) by drawing inferences from TPM and converting to gene-level counts through tximport (8). In a nutshell, it is not the only method to perform such tasks as which tools to use are largely pertaining to specific biological questions and are influenced by various sources of variability and statistical challenges (13).
+
+# Citation
+
+1. Pertea, M., Kim, D., Pertea, G. M., Leek, J. T., & Salzberg, S. L. (2016). Transcript-level expression analysis of RNA-seq experiments with HISAT, StringTie and Ballgown. Nature Protocols, 11(9), 1650–1667. https://doi.org/10.1038/nprot.2016.095 
+2. Wang, Z., Gerstein, M., & Snyder, M. (2009). RNA-Seq: a revolutionary tool for transcriptomics. Nature reviews. Genetics, 10(1), 57–63. https://doi.org/10.1038/nrg2484
+3.  Rodriguez-Esteban, R., & Jiang, X. (2017). Differential gene expression in disease: a comparison between high-throughput studies and the literature. BMC medical genomics, 10(1), 59. https://doi.org/10.1186/s12920-017-0293-y
+4. Jiao, A. L., Perales, R., Umbreit, N. T., Haswell, J. R., Piper, M. E., Adams, B. D., Pellman, D., Kennedy, S., & Slack, F. J. (2019). Human nuclear RNAi-defective 2 (NRDE2) is an essential RNA splicing factor. RNA, 25(3), 352–363. https://doi.org/10.1261/rna.069773.118 
+5. Chen, S., Zhou, Y., Chen, Y., & Gu, J. (2018). fastp: An ultra-fast all-in-one FASTQ preprocessor. Bioinformatics, 34(17), i884–i890. https://doi.org/10.1093/bioinformatics/bty560 
+6. Andrews, S. (2010). FastQC:  A Quality Control Tool for High Throughput Sequence Data [Online]. Available online at: http://www.bioinformatics.babraham.ac.uk/projects/fastqc/
+7. Ewels, P. (n.d.). MultiQC: summarize analysis results for multiple tools and samples in a single report. 2.
+8. Patro, R., Duggal, G., Love, M. I., Irizarry, R. A., & Kingsford, C. (2017). Salmon provides fast and bias-aware quantification of transcript expression. Nature Methods, 14(4), 417–419. https://doi.org/10.1038/nmeth.4197 333
+9. Soneson C, Love MI and Robinson MD. Differential analyses for RNA-seq: transcript-level estimates improve gene-level inferences [version 2; peer review: 2 approved]. F1000Research 2016, 4:1521 (https://doi.org/10.12688/f1000research.7563.2)
+10. Cailleau, R., Olivé, M., & Cruciger, Q. V. (1978). Long-term human breast carcinoma cell lines of metastatic origin: preliminary characterization. In vitro, 14(11), 911–915. https://doi.org/10.1007/BF02616120
+11. Love, M. I., Huber, W., & Anders, S. (2014). Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. Genome Biology, 15(12), 550. https://doi.org/10.1186/s13059-014-0550-8 
+12. GATK: McKenna, A., Hanna, M., Banks, E., Sivachenko, A., Cibulskis, K., Kernytsky, A., Garimella, K., Altshuler, D., Gabriel, S., Daly, M., & DePristo, M. A. (2010). The Genome Analysis Toolkit: a MapReduce framework for analyzing next-generation DNA sequencing data. Genome research, 20(9), 1297–1303. https://doi.org/10.1101/gr.107524.110
+13. Patro, R., Duggal, G., Love, M. I., Irizarry, R. A., & Kingsford, C. (2017). Salmon provides fast and bias-aware quantification of transcript expression. Nature Methods, 14(4), 417–419. https://doi.org/10.1038/nmeth.4197 
+14. Trapnell, C., Hendrickson, D. G., Sauvageau, M., Goff, L., Rinn, J. L., & Pachter, L. (2013). Differential analysis of gene regulation at transcript resolution with RNA-seq. Nature Biotechnology, 31(1), 46–53. https://doi.org/10.1038/nbt.2450
+15. Love MI, Soneson C and Patro R. Swimming downstream: statistical analysis of differential transcript usage following Salmon quantification [version 3; peer review: 3 approved]. F1000Research 2018, 7:952 (https://doi.org/10.12688/f1000research.15398.3)
+16. Per base sequence content. (n.d.). Retrieved April 19, 2021, from https://www.bioinformatics.babraham.ac.uk/projects/fastqc/Help/3%20Analysis%20Modules/4%20Per%20Base%20Sequence%20Content.html 
+
+                              
