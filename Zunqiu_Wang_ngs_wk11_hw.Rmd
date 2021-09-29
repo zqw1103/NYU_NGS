@@ -1,0 +1,309 @@
+---
+title: "Zunqiu_Wang_ngs_wk11_hw"
+author: "Zunqiu Wang"
+date: "4/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Task 1: Download reads using the sra toolkit.
+
+Q1.1 Log in to Greene and create a slurm script that downloads the data. The script should load the most recent sra-tools module then download the three fastq file. Execute your script and report the contents and the names of the fastq files in your /scratch. [ 1 point ].
+```{bash, echo=T, eval=F}
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=8:00:00
+#SBATCH --mem=8GB
+#SBATCH --job-name=down_sra
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+##SBATCH --array=1-3
+
+module purge
+
+module load sra-tools/2.10.9
+
+fasterq-dump SRR7207011
+
+fasterq-dump SRR7207017
+
+fasterq-dump SRR7207089
+
+echo _ESTATUS_ [ down_sra ]: $?
+```
++ SRR7207011.fastq  SRR7207017.fastq  SRR7207089.fastq
+
+## Task 2: Run fastp to process the reads
+
+Q2.1 Create a slurm script that will process the single-end reads downloaded in Task 1 using fastp.
+Execute your script and report its contents for your answer [ 1 point ].
+
+```{bash, echo=T, eval=F}
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=8:00:00
+#SBATCH --mem=8GB
+#SBATCH --job-name=fastp_array
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+#SBATCH --array=1-3
+
+module purge
+
+table=/scratch/zw2946/ngs.week11/raw_data/fastq_files.txt
+
+fqfilepath="$(head -n ${SLURM_ARRAY_TASK_ID} "${table}" | tail -n 1)"
+fq="$(basename $fqfilepath)"
+sample="$(basename $fq .fastq)"
+
+mkdir "${sample}"
+cd "${sample}"
+
+fq_fastp=$(basename ${fq} .fastq).fq
+
+module load fastp/intel/0.20.1
+
+fastp -i $fqfilepath \
+-o $fq_fastp \
+--length_required 50 \
+--html $sample.fastp.html \
+--json $sample.fastp.json
+
+echo _ESTATUS_ [ fastp for $sample ]: $?
+
+module purge
+module load fastqc/0.11.9
+
+fastqc $fq_fastp
+
+echo _ESTATUS_ [ fastqc for $sample ]: $?
+
+echo _END_ [ fastp for $sample ]: $(date)
+```
+
+# Task 3: Align the reads to the reference genome
+
+Q3.1. Execute your script and report its contents for your answer [ 1 point ].
+
+```{bash, echo=T, eval=F}
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=8:00:00
+#SBATCH --mem=8GB
+#SBATCH --job-name=bwa_mem
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+#SBATCH --array=1-3
+
+module purge
+
+ref=/scratch/work/courses/BI7653/hw3.2021/hg38/Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa
+
+table=/scratch/zw2946/ngs.week11/task2/processed_fq_file.txt
+
+fqfilepath="$(head -n ${SLURM_ARRAY_TASK_ID} "${table}" | tail -n 1)"
+fq="$(basename $fqfilepath)"
+sample="$(basename $fq .fq)"
+
+mkdir "${sample}"
+cd "${sample}"
+
+echo Processing array index: $SLURM_ARRAY_TASK_ID sample: $sample
+
+module load bwa/intel/0.7.17
+
+bwa mem \
+-M \
+-t $SLURM_CPUS_PER_TASK \
+"${ref}" \
+$fqfilepath > $sample.sam
+
+echo _ESTATUS_ [ bwa mem for $sample ]: $?
+
+echo _END_ [ bwa_mem.slurm for $sample ]: $(date)
+```
+
+Q3.2.Execute your script and report its contents for your answer. [ 3 points ].
+
+```{bash, echo=T, eval=F}
+!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=48:00:00
+#SBATCH --mem=46GB
+#SBATCH --job-name=convert_sort_index
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+#SBATCH --array=1-3
+
+module purge
+
+
+# Path to fq file
+
+table=/scratch/zw2946/ngs.week11/task2/processed_fq_file.txt
+
+
+# Define sample variables for current array index
+
+fqfilepath="$(head -n ${SLURM_ARRAY_TASK_ID} "${table}" | tail -n 1)"
+fq="$(basename $fqfilepath)"
+sample="$(basename $fq .fq)"
+
+echo Processing array index: $SLURM_ARRAY_TASK_ID sample: $sample
+
+cd "${sample}"
+
+module load samtools/intel/1.11
+
+#sam to bam
+samtools view -bh ${sample}.sam > ${sample}.bam
+
+
+module load picard/2.17.11
+
+java -Xmx44g -jar "${PICARD_JAR}" SortSam \
+INPUT=${sample}.bam \
+OUTPUT=${sample}.sorted.bam \
+SORT_ORDER=coordinate \
+TMP_DIR="${SLURM_JOBTMP}" \
+MAX_RECORDS_IN_RAM=10000000 \
+VALIDATION_STRINGENCY=LENIENT
+
+echo _ESTATUS_ [ SortSam $sample ]: $?
+
+module load samtools/intel/1.11
+
+#index sorted bam
+samtools index ${sample}.sorted.bam
+
+echo _ESTATUS_ [ index $sample ]: $?
+
+echo _END_ [ convert_sort_index for $sample ]: $(date)
+```
+
+Q3.3 Execute your commands separately on all three BAMs in a slurm script to produce new BAMs with low mapping quality reads removed and their index files. Report your script for your answer [ 1 point ].
+
+```{bash, echo=T, eval=F}
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=48:00:00
+#SBATCH --mem=46GB
+#SBATCH --job-name=filter_index
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+#SBATCH --array=1-3
+
+module purge
+
+
+# Path to fq file
+
+table=/scratch/zw2946/ngs.week11/task2/processed_fq_file.txt
+
+
+# Define sample variables for current array index
+
+fqfilepath="$(head -n ${SLURM_ARRAY_TASK_ID} "${table}" | tail -n 1)"
+fq="$(basename $fqfilepath)"
+sample="$(basename $fq .fq)"
+
+echo Processing array index: $SLURM_ARRAY_TASK_ID sample: $sample
+
+cd "${sample}"
+
+module load samtools/intel/1.11
+
+samtools view -h -q 20 ${sample}.sorted.bam > ${sample}.filtered.bam
+
+echo _ESTATUS_ [ filter $sample ]: $?
+
+module load picard/2.17.11
+
+java -Xmx44g -jar "${PICARD_JAR}" SortSam \
+INPUT=${sample}.filtered.bam \
+OUTPUT=${sample}.filtered.sorted.bam \
+SORT_ORDER=coordinate \
+TMP_DIR="${SLURM_JOBTMP}" \
+MAX_RECORDS_IN_RAM=10000000 \
+VALIDATION_STRINGENCY=LENIENT
+
+echo _ESTATUS_ [ SortSam $sample ]: $?
+
+samtools index ${sample}.filtered.sorted.bam
+
+echo _ESTATUS_ [ index $sample ]: $?
+
+echo _END_ [ filter_index for $sample ]: $(date)
+```
+
+Q4.1 Execute your script and report its contents for your answer. Retain your outputs for Week 12 assignment [ 1 point ].
+
+```{bash, echo=T, eval=F}
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=48:00:00
+#SBATCH --mem=46GB
+#SBATCH --job-name=macs2_callpeak
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+
+
+module load macs2/intel/2.2.7.1
+
+macs2 callpeak -t /scratch/zw2946/ngs.week11/task3/SRR7207011/SRR7207011.filtered.sorted.bam \
+-c /scratch/zw2946/ngs.week11/task3/SRR7207089/SRR7207089.filtered.sorted.bam \
+-f BAM \
+-g hs \
+-n SRR7207011 \
+-B \
+-q 0.01
+
+macs2 callpeak -t /scratch/zw2946/ngs.week11/task3/SRR7207017/SRR7207017.filtered.sorted.bam \
+-c /scratch/zw2946/ngs.week11/task3/SRR7207089/SRR7207089.filtered.sorted.bam \
+-f BAM \
+-g hs \
+-n SRR7207017 \
+-B \
+-q 0.01
+
+echo _ESTATUS_ [ macs2_callpeak ]: $?
+
+echo _END_ [ macs2_callpeak.slurm ]: $(date)
+```
+
+Q4.2 Describe in your own words in three sentences or less the primary purpose of a transcription factor ChIP-seq experiment such as the one you are conducting this week and next [ 1 point ].
+
++ Using a combination of chromatin immunoprecipitation and sequencing to identifies how transcription factors at TF binding site interact with DNA in vivo and discover if treatement activate/repress target gene expression and regions of enrichment of a specific TF 
++ assist gene expression profiling studies
++ Gain an understanding of gene regulation
+
+Q4.3. select all statements below that are true. (note: most answers can be found in the Abstratct and Introduction) [ 1 point ].
+
++ a
++ b
++ c
++ d
+
+
+
+

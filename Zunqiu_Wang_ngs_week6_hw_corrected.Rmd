@@ -1,0 +1,173 @@
+---
+title: "Zunqiu_Wang_ngs_week6_hw"
+author: Zunqiu Wang
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Task 1: Summarize coverage and insert size distribution from BAM alignments
+
+Q1.1a Report the coverage depth for sample CR2342. The genome size for Chlamydomonas is 120 Mb. Explain how you arrived at this answer [ 1 points ].
+
++ 144,271,998(read mapped and paired) x 51(average length) / 120,000,000 = 61.3X average coverage
+
+Q1.1b. When reporting coverage depth genomewide for a BAM, what are two reasons why it might it not be accurate to simply count the number of reads in the alignment (e.g., samtools view -c ), multiply by the read length from the sequencing (e.g., 100 in a 2 X 100 PE run), and divide by the genome size? [ 1 point ]
+
++ reads may be of different length
++ Reads in alignment contains unmapped, duplicated sequences 
+
+Q1.1c Explain what MQ0 (=mapping quality of zero) represents in the stats output for reads mapped with BWA. Then answer the following multiple-choice question. Which of the following situations would you expect to find MQ0 reads mapped to gene A (or A’) in the reference? Choose the single best answer. (a) gene A is duplicated in the reference to form identical copies gene A and A’, but is single copy gene A in the sequenced sample (b) gene A is single copy in the reference but duplicated to form identifical copies gene A and gene A’ in the sequenced sample (c) both situations should produce MQ0 reads mapped to the reference [ 1 point ].
+
++ It means that it is not a uniquely mapped read indicating it is mapped to other locations 
++ c
+
+Q1.1d. An important property in some structural variant analyses is the insert size distribution in paired-end data. For example, so-called “read pair” structural variant detection methods use the insert size distribution to identify regions where many read pairs map either too far apart relative to the genomewide distribution of the distance between reads (i.e., the insert size).
+
+The lines in the samtools stat output beginning with “IS” contain the insert size and the corresponding number of pairs falling into each insert size category. Use these data to devise a crude method to predict deletions using this empirical insert size distribution [ 2 points ].
+
+Include in your answer:
+
+A detailed description of the rational for your test.
+Which tail of the read length distribution should be enriched for deletions and why
+Report a reasonable threshold insert size below or above which are likely to be enriched for deletions.
+```{bash, echo=T, eval=F}
+grep ^IS | cut -f 2-
+```
++ limited to detect events of average insert size and detection of larger size isnt accurate but overall is a reasonable approximation
++ average insert size is 435bp so read length enriched for deletions should be larger than 435bp
++ upper tail for deletion in sample (insertion in reference). When insert size is normal in sample genome while it is large distance between read pairs when mapped to reference genome.
++ below 90bp the count is too low, indicating insertion possibility
++ above 559bp, above which the number of pairs decrease dramatically indicating outliers. This is regeion enriched for deletions.
++ 1023 pairs for 559bp while 994 for 560bp
++ Normal:90<insert size<559
++ conclusion: Above 559bp insert size is the region enriched for deletions
++ Download IS portion as IS.txt
++ Examine and visualize with plot in R
++ Excuse if interpretation is not correct but try my best
+- expected a percentile or SD. to define outliers as well. your method will have lots of false positives. More than 2.5 SD away, may be more appropriate here.    
+
+```{r, echo=T, fig.align="center", fig.width=10, fig.height=10}
+IS <- read.table('IS.txt', header = F)
+names(IS) <- c('insert_size', 'count')
+library(ggplot2)
+library(tidyr)
+IS %>% ggplot(aes(x= insert_size, y= count)) +
+  geom_col() +
+  xlim(0,2000) +
+  scale_y_continuous(labels = scales::scientific) +
+  geom_vline(xintercept = c(90,559)) +
+  geom_rect(aes(xmin = 559, xmax = Inf, ymin = 0, ymax = Inf, fill = 'deletion'), color =NA, alpha = 0.05) +
+  geom_rect(aes(xmin = -Inf, xmax = 90, ymin = 0, ymax = Inf, fill = 'insertion'), color =NA, alpha = 0.05) +
+  labs(title = "Insert size distribution", x = 'insert size (bp)') +
+  theme_bw() +
+  theme(plot.title = element_text(color = 'red', size = 12, hjust = 0.5, face = "bold" )) +
+  scale_fill_manual("Anomalous distance", values = c('seagreen2', 'blue'), guide = guide_legend(override.aes = list(alpha = 1)))
+```
+
+### Task 2: Coverage depth in genomic regions and copy number variant discovery
+
+Q2.1a What is the read depth at position 10,001 on chromosome_1 for CR2342?
+
++ 241
+
+Q2.1b What is the coverage in the interval chromosome_1:10001-10020 for CR2342?
+
++ (241+251+260+266+268+274+275+276+283+289+294+298+302+301+298+299+297+299+302) / 20 = 282.1X
+
+Q2.2a. Paste the contents of your job submission script into your assignment document [ 1 point ].
+
+```{bash, echo=T, eval=F}
+!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=4:00:00
+#SBATCH --mem=4GB
+#SBATCH --job-name=samtools.stats.slurm
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+
+module purge
+
+echo script begin: $(date)
+
+module load samtools/intel/1.11
+
+samtools bedcov /scratch/work/courses/BI7653/hw6.2021/chromosome_1.500bp_intervals.bed \
+/scratch/work/courses/BI7653/hw6.2021/CR2342.bam \
+/scratch/work/courses/BI7653/hw6.2021/CR407.bam
+
+echo _ESTATUS_ [ samtools.bedcov ]: $?
+
+echo _END_ [ bedcov.slurm ]: $(date)
+```
+
+Q2.2b. What is the coverage of the last 10 intervals CR407 and CR2342 in the output file: (tail -n 10 ) in your answers file [ 1 point ].
+
++ CR2342: (13544+3065+2383+7392+11040+9891+10937+19142+17844+1323) / (8033585-8029000-1) = 21.0X
++ CR407: (21495+17839+19434+28084+38217+26758+26281+31353+28520+2457) / (8033585-8029000-1) = 52.5X
+
+Q2.3 Include your plot in your MarkDown report or use the example code to create a pdf (which you must submit with your answer) [ 1 point ]
+```{r, echo=T, fig.align="center", fig.width=10, fig.height=10}
+library(tidyverse)
+library(ggplot2)
+bedcov.tbl_df <- read_tsv("bedcov.txt",col_names=F)
+# note: the order you specified CR407 and CR2342 in the bedcov command above will determine which 
+#       which is in column 4 and which is in column 5. Adjust the names function accordingly.
+names(bedcov.tbl_df) <- c('chr','start','end','CR2342_dp','CR407_dp')
+
+# Add columns to data frame with normalized depth values for each strain
+# note: we write to a tibble with same variable name as given above.
+
+bedcov.tbl_df <- bedcov.tbl_df %>% 
+  mutate(CR2342_normdp = log2( CR2342_dp / median(CR2342_dp,na.rm=T)))
+bedcov.tbl_df <- bedcov.tbl_df %>% 
+  mutate(CR407_normdp = log2( CR407_dp / median(CR407_dp,na.rm=T)))
+
+# Now add your own code to add a normalized column for CR2342 using the above mutate command as an example
+# Be sure to write to the variable with name bedcov.tbl_df for code below to work.
+# transform data frame into long format for ggplot
+
+bedcov_pivoted.tbl_df <- bedcov.tbl_df %>%
+  select(-CR407_dp,-CR2342_dp) %>%
+  pivot_longer(cols = c(-chr,-start,-end), 
+               names_to = 'sample', 
+               values_to = 'normalized_depth')
+
+bedcov_pivoted.tbl_df %>%
+  ggplot(aes(x = start,y = normalized_depth)) + geom_point(color="#0072B2", size = 0.3, alpha=0.5) +
+  labs(title = "Normalized_depth of CR2342 and CR407", x = "start_position", y = "normalized_depth(log2)") +
+  theme_bw() +
+  theme(plot.title = element_text(color = 'red', size = 12, hjust = 0.5, face = "bold" )) +
+  facet_wrap(~ sample,nrow=2) 
+```
+
+Q2.4a Which sample has a large (~ 400 kb) duplication on chromosome 1? Approximately what position on the chromosome is the duplication?
+
++ CR407
++ 4.25e+06 to 4.65e+06
+
+Q2.4b What is the approximate log2 value in this duplicated region? Based on this log2 value, what do you think the copy number of this duplication might be given that Chlamydomonas are haploid?
+
++ 2
++ 2^2 = 4
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

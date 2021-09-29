@@ -1,0 +1,243 @@
+---
+title: "Zunqiu_Wang_ngs_week5_hw"
+author: Zunqiu Wang
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Task 1: Genotype qualities and Phred-scaled genotype likelihoods (PLs) in VCF
+
+Q1.1a How many heterozygous genotypes were called at this site? Answer the question and copy the sample field data (beginning with the GT field and ending with the PL field) for these genotypes.
+
++ 2
+
+```{bash, echo=T, eval=F}
+	GT:AD:DP:GQ:PL	./.:0,0:0:.:0,0,0	0/0:2,0:2:6:0,6,82	0/0:2,0:2:6:0,6,70	0/0:2,0:2:6:0,6,76	./.:0,0:0:.:0,0,0	0/0:1,0:1:3:0,3,33	0/0:6,0:6:18:0,18,237	0/0:2,0:2:6:0,6,77	0/0:6,0:6:18:0,18,254	./.:0,0:0:.:0,0,0	0/0:6,0:6:18:0,18,270	./.:2,0:2:.:0,0,1	0/0:3,0:3:9:0,9,112	0/0:4,0:4:12:0,12,159	0/1:6,2:8:40:40,0,169	0/0:4,0:4:12:0,12,133	0/0:5,0:5:0:0,0,133	0/0:4,0:4:12:0,12,109	0/0:1,0:1:3:0,3,39	0/1:1,2:3:18:42,0,18	0/0:2,0:2:6:0,6,63	0/0:2,0:2:6:0,6,47	./.:0,0:0:.:0,0,0	./.:0,0:0:.:0,0,0	0/0:5,0:5:0:0,0,129	0/0:2,0:2:6:0,6,56	0/0:3,0:3:9:0,9,89	0/0:6,0:6:18:0,18,214	0/0:1,0:1:3:0,3,30
+```
+
+Q1.1b What are the nucleotide genotypes (in terms of A, T, G, C) of the 0/0 samples? The 0/1 genotypes? The 1/1 genotypes?
+
++ 0/0: C/C
++ 0/1: C/T
++ 1/1: T/T
+
+Q1.2a What are the PLs of 0/0, 0/1, and 1/1 genotypes for each of the two heterozygous samples in Q1.1a?
+
++ 40,0,169
++ 42,0,18
+
+Q1.2b What is the GQ of the higher confidence genotype call?
+
++ 40
+
+Q1.2c. A common observation is that the GQs of heterozygote genotypes are higher than GQs of homozygotes (you can convince yourself of this by looking at the above VCF record or other records in the VCF file). Provide an intuitive explanation why this might be.
+
+1. Each read is like a coin flip which could reveal either heads (a reference allele), or tails (an alternate allele)
+
+2. Imagine a magician has a coin and doesn’t tell you if its a one-sided (think homozygote) or two-sided coin (think heterozygote)
+
+3. He then flips the coin three times, and all four times its heads. Are you certain the coin is one-sided? Could it be two-sided?
+
+4. What if magician flips coin and first trial is heads, second trial is tails? How certain are you in the type of coin (one or two-sided?)
+
+
+## Task 2: Estimation of genotype likelihoods from BAM
+
+Q2.1. What genotype likelihood model does the above script use to infer GLs? See above ANGSD genotype likelihoods website. [ 1 point ]
+
++ GATK model
+
+Q2.2. How many genotype likelihoods are there per sample per site in the output file GLs.gz? [ 1 point ]?
+
++ 3: allele1/allele1, allele1/allele2, allele2/allele2
+
+## Task 3: Analysis of population structure with genotype likelihoods I
+
+Q3.1. How many genotype likelihoods are there per sample for each SNP? How many polymorphic sites are in the analysis? [ 1 point ]
+
+```{bash, echo=T, eval=F}
+gunzip -c Demo1input.gz | wc -l
+```
++ 3
++ 5616(5617-1 due to header)
+
+Q3.2 Embed the diagram in your RMarkdown or attach the .pdf to your assignment. [ 1 point ]
+
+```{r, echo=FALSE, fig.align="center", fig.width=4, fig.height=4, fig.cap="Figure: Analysis of population structure with genotype likelihoods I"}
+
+library(tidyverse)
+pop.tbl_df <- read_delim(file = "Demo1pop.info",delim = " ", col_names = FALSE)
+
+qopt.tbl_df <- read_delim(file = "Demo1NGSadmix_nowhite.qopt",delim = " ", col_names = F)
+
+qopt.tbl_df <- bind_cols(pop.tbl_df,qopt.tbl_df)
+
+names(qopt.tbl_df) <- c("pop","sample","g1","g2","g3")
+
+
+
+qopt.tbl_df.long <- qopt.tbl_df %>% 
+  pivot_longer(cols = g1:g3, names_to = 'group', values_to = 'fraction')
+
+
+qopt.tbl_df.long %>%
+  ggplot(aes(x=sample,y=fraction,fill=group)) + geom_col(color = "gray", size = 0.1) +
+  facet_grid(~ pop, scales = "free", space = "free") +   
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        axis.text.x = element_text(angle = 90))
+```
++ ancestry likelihood of g1 genotype is from individuals living in YRI, g2 is from CEU, and g3 from JPT. But there are odds within each 3 population. Some individuals in CEU having JPT g3 ancestry, some in JPT having CEU g2 as well as both YRI g1 and CEU g2 ancestry, some in YRI having CEU g2 ancestry.
+
+Q3.3a What is plotted on the X and Y axis?
+
++ X is sample
++ Y is fraction
+
+Q3.3b Which individuals in the CEU (“Utah residents (CEPH) with Northern and Western European ancestry”) also appear to have some Japanese (“JPT = Japanese Living in Tokyo”) ancestry at K=3?
+
++ smallNA11831, smallNA11994, smallNA12763
+
+## Task 4: Analysis of population structure with genotype likelihoods II
+
+Q4.1 Copy the contents of your script into your assignment document [ 1 point ].
+
+```{bash, echo=T, eval=F}
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=2:00:00
+#SBATCH --mem=4GB
+#SBATCH --job-name=large_pop_GL
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+
+module purge
+echo script begin: $(date)
+
+module load ngsadmix/intel/20210224
+
+NGSadmix -likes Demo2input.gz -K 3 -minMaf 0.05 -seed 1 -o Demo2NGSadmix.k3
+
+NGSadmix -likes Demo2input.gz -K 4 -minMaf 0.05 -seed 1 -o Demo2NGSadmix.k4
+
+NGSadmix -likes Demo2input.gz -K 5 -minMaf 0.05 -seed 1 -o Demo2NGSadmix.k5
+
+echo _ESTATUS_ [ large_pop_GL ]: $?
+echo _END_ [ large_pop_GL.slurm ]: $(date)
+```
+
+Q4.2 Plot the results separately for K=3, K=4 and K=5 using the example from Task 3 to assist you. Include your R code and plot in your answer. [ 1 point ]
+
+```{r, echo=T}
+library(tidyverse)
+library(dplyr)
+
+pop.tbl_df <- read_delim(file = "Demo2pop.info",delim = " ", col_names = FALSE)
+###k3
+qopt.k3.tbl_df <- read_delim(file = "Demo2NGSadmix.k3_nowhite.qopt",delim = " ", col_names = F)
+###k4
+qopt.k4.tbl_df <- read_delim(file = "Demo2NGSadmix.k4_nowhite.qopt",delim = " ", col_names = F)
+###k5
+qopt.k5.tbl_df <- read_delim(file = "Demo2NGSadmix.k5_nowhite.qopt",delim = " ", col_names = F)
+
+###bind_cols
+
+qopt.k3.tbl_df <- bind_cols(pop.tbl_df, qopt.k3.tbl_df)
+qopt.k4.tbl_df <- bind_cols(pop.tbl_df, qopt.k4.tbl_df)
+qopt.k5.tbl_df <- bind_cols(pop.tbl_df, qopt.k5.tbl_df)
+
+##rename cols
+names(qopt.k3.tbl_df) <- c("pop","sample","g1","g2","g3")
+names(qopt.k4.tbl_df) <- c("pop","sample","g3","g1","g4","g2")
+names(qopt.k5.tbl_df) <- c("pop","sample","g2","g4","g5","g1","g3")
+
+###pivot_longer
+qopt.k3.tbl_df.long <- qopt.k3.tbl_df %>% 
+  pivot_longer(cols = -c(pop, sample), names_to = 'group', values_to = 'fraction')
+
+qopt.k4.tbl_df.long <- qopt.k4.tbl_df %>%
+  pivot_longer(cols = -c(pop, sample), names_to = 'group', values_to = 'fraction')
+
+qopt.k5.tbl_df.long <- qopt.k5.tbl_df %>%
+  pivot_longer(cols = -c(pop, sample), names_to = 'group', values_to = 'fraction')
+
+###mutate with assigned K variable column
+#mutate with a column indicating k=3
+qopt.k3.tbl_df.long <- mutate(qopt.k3.tbl_df.long, k = '3')
+#mutate with a column indicating k=4
+qopt.k4.tbl_df.long <- mutate(qopt.k4.tbl_df.long, k = '4')
+#mutate with a column indicating k=5
+qopt.k5.tbl_df.long <- mutate(qopt.k5.tbl_df.long, k = '5')
+
+###bind_rows()
+qopt.tbl_df.long <- bind_rows(qopt.k3.tbl_df.long,qopt.k4.tbl_df.long,qopt.k5.tbl_df.long)
+```
+```{r, echo=T, fig.align="center", fig.width=10, fig.height=10, fig.cap="Figure: Analysis of population structure with genotype likelihoods with all K"}
+##plot
+qopt.tbl_df.long %>% 
+  ggplot(aes(x=sample,y=fraction,fill=group)) + geom_col(color = "gray", size = 0.1) +
+  facet_grid(k ~ pop, scales = "free", space = "free") +   
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        axis.text.x = element_text(angle = 90))
+```
+```{r, echo=T, fig.align="center", fig.width=10, fig.height=10, fig.cap="Figure: Analysis of population structure with genotype likelihoods K=3"}
+qopt.tbl_df.long %>% filter(k == '3') %>%
+  ggplot(aes(x=sample,y=fraction,fill=group)) + geom_col(color = "gray", size = 0.1) +
+  facet_grid(~ pop, scales = "free", space = "free") +   
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        axis.text.x = element_text(angle = 90))
+```
+```{r, echo=T, fig.align="center", fig.width=10, fig.height=10, fig.cap="Figure: Analysis of population structure with genotype likelihoods K=4"}
+qopt.tbl_df.long %>% filter(k == '4') %>%
+  ggplot(aes(x=sample,y=fraction,fill=group)) + geom_col(color = "gray", size = 0.1) +
+  facet_grid(~ pop, scales = "free", space = "free") +   
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        axis.text.x = element_text(angle = 90))
+```
+``````{r, echo=T, fig.align="center", fig.width=10, fig.height=10, fig.cap="Figure: Analysis of population structure with genotype likelihoods K=5"}
+qopt.tbl_df.long %>% filter(k == '5') %>%
+  ggplot(aes(x=sample,y=fraction,fill=group)) + geom_col(color = "gray", size = 0.1) +
+  facet_grid(~ pop, scales = "free", space = "free") +   
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        axis.text.x = element_text(angle = 90))
+```
+Q4.3 Review your outputs from Q4.2. What can you say about populations ASW,CEU,CHB,MXL,YRI? Which populations appear to be “pure” in this analysis? Are they “pure/unadmixed” at all K values? What pattern of ancestry distinguishes K=3 from K=4. For example, which population(s) seem to be further split in K=4 versus K=3? What distinguishes K=4 and K=5? [ 1 point ]
+
++ with incleasing values of K, there will be more split/diversity of clusters within each population(finer ancestry likelihood), may pose to increased risk of over-presenting and biological meaningless
++ CEU, CHB, YRI
++ No, CEU has small split while CHB and YRI stays pure so far
++ MXL is further split with a lowered influence from CHB ancenstry and a new group itself indentified for MXL
++ MXL is markedlyly splited into all 5 groups of ancestry
+- ASW is admixed between CEU and YRI at all 3 k values
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

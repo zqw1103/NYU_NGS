@@ -1,0 +1,313 @@
+---
+title: "ngs week2 hw"
+author: Zunqiu Wang
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Task 1: Pre-processing fastq data for variant discovery
+
+Q1.1a.Paste the contents of your job script into your homework file. Please use an RMarkdown code block or equivalent (see Week 2 webinar when we will discuss RMarkdown) if possible.
+
+```{bash, echo=T,eval=F}
+
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=4:00:00
+#SBATCH --mem=4GB
+#SBATCH --job-name=slurm_template
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+
+module purge
+
+echo script begin: $(date)
+
+module load fastp/intel/0.20.1
+
+sample=ERR156634
+fqdir=/scratch/work/courses/BI7653/hw2.2021
+fq1=ERR156634_1.filt.fastq.gz
+fq2=ERR156634_2.filt.fastq.gz
+fq1_fastp=$(basename $fq1 .fastq.gz).fP.fastq.gz
+fq2_fastp=$(basename $fq2 .fastq.gz).rP.fastq.gz
+
+fastp -i $fqdir/$fq1 \
+-I $fqdir/$fq2 \
+-o $fq1_fastp \
+-O $fq2_fastp \
+--length_required 76 \
+--n_base_limit 50 \
+--detect_adapter_for_pe
+
+echo _ESTATUS_ [ fastp for $sample ]: $?
+
+echo script completed: $(date)
+```
+Q1.1b Report your job id.
+
++ 2334956
+
+Q1.1c Report the exit status of your job. To do so, once the job is completed, enter the following and report the job state and exit code. What does the exit code mean?:
+
+```{bash, echo=T,eval=F}
+sacct -j 2334956
+ JobID    JobName  Partition    Account  AllocCPUS      State ExitCode 
+------------ ---------- ---------- ---------- ---------- ---------- -------- 
+2334956      slurm_tem+         cs      users          1  COMPLETED      0:0 
+2334956.bat+      batch                 users          1  COMPLETED      0:0 
+2334956.ext+     extern                 users          1  COMPLETED      0:0 
+```
++ It meeans no error generated. 
+
+Q1.1d A common source of confusion for students new to the command prompt is the distinction between relative and absolute file paths. What is the difference?
+
++ Absolute path: the full path from root directory to your working directory
++ Relative path: the location relative to current working directory, usually using "." as present working directory and could use multiple "." for parent directory.
+
+Q1.1e Did you use an absolute or relative path to read the fastq files in the course directory? Did you use an absolute or relative path to write the processed fastq files?
+
++ Absolute path for fastq files in the course directory; relative path to write the processed fastq files
+
+Q1.2a How many reads were in each of the input fastq files?
+Q1.2b What are the read identifiers of the first pair of input reads? Rport the first read identifier for both paired end fastq files.
+```{bash, echo=T,eval=F}
+gunzip -c /scratch/work/courses/BI7653/hw2.2021/ERR156634_1.filt.fastq.gz | head
+@ERR156634.195 HS1_6994:2:1101:1065:8652#8/1
+70136100/4=17534025
+gunzip -c /scratch/work/courses/BI7653/hw2.2021/ERR156634_2.filt.fastq.gz | head
+@ERR156634.195 HS1_6994:2:1101:1065:8652#8/2
+70136100/4=17534025
+```
+Q1.2c How many reads in the processed output fastq files?
++ Read 1:17183911
++ Read 2: 17183911
+
+Q1.2d What is the name of the STDOUT file for your job?
++ slurm-2334956.out
+
+Q1.2e Provide an example command line you would use to redirect the STDOUT of fastp to a file name of your choosing instead of the default STDOUT of the job? If you are working in RMarkdown or equivalent please add a code block with your answer.
+```{bash, echo=T,eval=F}
+mv slurm-2334956.out PE_pair_2334956.out
+```
+
+Q1.2f What percentage of the bases were Phred quality of Q30 or above in each of the original and processed fastqs?
++ original read 1: 94.3776%
+- processed read 1: 94.7822%
++ original read 2: 91.5352%
+- processed read 2: 92.4373%
+
+Q1.2g Report the “Filtering result” section of the output and the duplication rate. Notice the different filters that are applied by fastp.
+
++ Filtering result:
+reads passed filter: 34367822
+reads failed due to low quality: 541724
+reads failed due to too many N: 0
+reads failed due to too short: 158504
+reads with adapter trimmed: 201414
+bases trimmed due to adapters: 9134238
+
+Duplication rate: 0.768038%
+
+Q1.3. fastp produces an .html report fastp.html by default. Please download it and identify something interesting or unexpected to you and upload along with your homework document [ 1 point ].
+- read 2 quality is low (mean PHRED 32.9208) at position 89 of sequencing due to increased identified Ns with 0.108% before filtering
+- read 2 quality is still low (mean PHRED 33.1596) but better at position 89 of sequencing with same Ns ratio(0.108%) after filtering.
++ read 1 overall is good quality, no Ns
+
+## Task 2: Process fastqs and generate fastqc reports
+
+Q2.1 Each array index will have its own STDERR and STDOUT which by default are written to a single file with naming convention slurm-_.out. Please review the contents of the output for index “1” and copy its contents to your homework file [ 1 point ].
+```{bash, echo=T,eval=F}
+cat slurm-2260858_1.out
+Processing array index: 1 sample: NA18757
+mkdir: cannot create directory ‘NA18757’: File exists
+Detecting adapter sequence for read1...
+No adapter detected for read1
+
+Detecting adapter sequence for read2...
+No adapter detected for read2
+
+Read1 before filtering:
+total reads: 58521629
+total bases: 5910684529
+Q20 bases: 5700891751(96.4506%)
+Q30 bases: 5376153278(90.9565%)
+
+Read2 before filtering:
+total reads: 58521629
+total bases: 5910684529
+Q20 bases: 5587494577(94.5321%)
+Q30 bases: 5236863942(88.6%)
+
+Read1 after filtering:
+total reads: 55124556
+total bases: 5566101957
+Q20 bases: 5450378785(97.9209%)
+Q30 bases: 5169068074(92.8669%)
+
+Read2 aftering filtering:
+total reads: 55124556
+total bases: 5566101957
+Q20 bases: 5410523196(97.2049%)
+Q30 bases: 5092424228(91.49%)
+
+Filtering result:
+reads passed filter: 110249112
+reads failed due to low quality: 6081064
+reads failed due to too many N: 0
+reads failed due to too short: 713082
+reads with adapter trimmed: 949358
+bases trimmed due to adapters: 43433322
+
+Duplication rate: 1.01555%
+
+Insert size peak (evaluated by paired-end reads): 171
+
+JSON report: NA18757.fastp.json
+HTML report: NA18757.fastp.html
+
+fastp -i /scratch/work/courses/BI7653/hw2.2021/SRR708363_1.filt.fastq.gz -I /scratch/work/courses/BI7653/hw2.2021/SRR708363_2.filt.fastq.gz -o SRR708363_1.filt.fP.fastq.gz -O SRR708363_2.filt.rP.fastq.gz --length_required 76 --detect_adapter_for_pe --n_base_limit 50 --html NA18757.fastp.html --json NA18757.fastp.json 
+fastp v0.20.1, time used: 1790 seconds
+_ESTATUS_ [ fastp for NA18757 ]: 0
+Started analysis of SRR708363_1.filt.fP.fastq.gz
+Approx 5% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 10% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 15% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 20% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 25% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 30% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 35% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 40% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 45% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 50% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 55% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 60% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 65% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 70% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 75% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 80% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 85% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 90% complete for SRR708363_1.filt.fP.fastq.gz
+Approx 95% complete for SRR708363_1.filt.fP.fastq.gz
+Analysis complete for SRR708363_1.filt.fP.fastq.gz
+Started analysis of SRR708363_2.filt.rP.fastq.gz
+Approx 5% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 10% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 15% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 20% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 25% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 30% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 35% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 40% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 45% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 50% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 55% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 60% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 65% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 70% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 75% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 80% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 85% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 90% complete for SRR708363_2.filt.rP.fastq.gz
+Approx 95% complete for SRR708363_2.filt.rP.fastq.gz
+Analysis complete for SRR708363_2.filt.rP.fastq.gz
+_ESTATUS_ [ fastqc for NA18757 ]: 0
+_END_ [ fastp for NA18757 ]: Fri Feb 5 21:43:11 EST 2021
+```
+
+Q2.2 Confirming quickly that each command line executed successfully can be challenging. Your instructor echo’d the word _ESTATUS_ and the BASH special variable $? (which reports the exit status of the most recently executed command) after the fastp and fastqc commands to confirm a zero exit status.
+
+You can quickly check that all processes completed with a zero exit status by navigating to your Task 2 directory (where the slurm-_.out files are located) and enter:
+
+```{bash, echo=T,eval=F}
+[zw2946@cs083 task2]$ grep _ESTATUS_ slurm*out
+slurm-2260858_10.out:_ESTATUS_ [ fastp for HG00149 ]: 0
+slurm-2260858_10.out:_ESTATUS_ [ fastqc for HG00149 ]: 0
+slurm-2260858_11.out:_ESTATUS_ [ fastp for HG00260 ]: 0
+slurm-2260858_11.out:_ESTATUS_ [ fastqc for HG00260 ]: 0
+slurm-2260858_12.out:_ESTATUS_ [ fastp for NA18907 ]: 0
+slurm-2260858_12.out:_ESTATUS_ [ fastqc for NA18907 ]: 0
+slurm-2260858_13.out:_ESTATUS_ [ fastp for NA19137 ]: 0
+slurm-2260858_13.out:_ESTATUS_ [ fastqc for NA19137 ]: 0
+slurm-2260858_14.out:_ESTATUS_ [ fastp for NA19093 ]: 0
+slurm-2260858_14.out:_ESTATUS_ [ fastqc for NA19093 ]: 0
+slurm-2260858_15.out:_ESTATUS_ [ fastp for NA19256 ]: 0
+slurm-2260858_15.out:_ESTATUS_ [ fastqc for NA19256 ]: 0
+slurm-2260858_16.out:_ESTATUS_ [ fastp for NA19098 ]: 0
+slurm-2260858_16.out:_ESTATUS_ [ fastqc for NA19098 ]: 0
+slurm-2260858_17.out:_ESTATUS_ [ fastp for NA18870 ]: 0
+slurm-2260858_17.out:_ESTATUS_ [ fastqc for NA18870 ]: 0
+slurm-2260858_18.out:_ESTATUS_ [ fastp for NA18909 ]: 0
+slurm-2260858_18.out:_ESTATUS_ [ fastqc for NA18909 ]: 0
+slurm-2260858_19.out:_ESTATUS_ [ fastp for NA19138 ]: 0
+slurm-2260858_19.out:_ESTATUS_ [ fastqc for NA19138 ]: 0
+slurm-2260858_1.out:_ESTATUS_ [ fastp for NA18757 ]: 0
+slurm-2260858_1.out:_ESTATUS_ [ fastqc for NA18757 ]: 0
+slurm-2260858_20.out:_ESTATUS_ [ fastp for HG00151 ]: 0
+slurm-2260858_20.out:_ESTATUS_ [ fastqc for HG00151 ]: 0
+slurm-2260858_21.out:_ESTATUS_ [ fastp for HG00106 ]: 0
+slurm-2260858_21.out:_ESTATUS_ [ fastqc for HG00106 ]: 0
+slurm-2260858_2.out:_ESTATUS_ [ fastp for NA18627 ]: 0
+slurm-2260858_2.out:_ESTATUS_ [ fastqc for NA18627 ]: 0
+slurm-2260858_3.out:_ESTATUS_ [ fastp for NA18591 ]: 0
+slurm-2260858_3.out:_ESTATUS_ [ fastqc for NA18591 ]: 0
+slurm-2260858_4.out:_ESTATUS_ [ fastp for NA18566 ]: 0
+slurm-2260858_4.out:_ESTATUS_ [ fastqc for NA18566 ]: 0
+slurm-2260858_5.out:_ESTATUS_ [ fastp for NA18644 ]: 0
+slurm-2260858_5.out:_ESTATUS_ [ fastqc for NA18644 ]: 0
+slurm-2260858_6.out:_ESTATUS_ [ fastp for NA18545 ]: 0
+slurm-2260858_6.out:_ESTATUS_ [ fastqc for NA18545 ]: 0
+slurm-2260858_7.out:_ESTATUS_ [ fastp for HG00113 ]: 0
+slurm-2260858_7.out:_ESTATUS_ [ fastqc for HG00113 ]: 0
+slurm-2260858_8.out:_ESTATUS_ [ fastp for HG00243 ]: 0
+slurm-2260858_8.out:_ESTATUS_ [ fastqc for HG00243 ]: 0
+slurm-2260858_9.out:_ESTATUS_ [ fastp for HG00132 ]: 0
+slurm-2260858_9.out:_ESTATUS_ [ fastqc for HG00132 ]: 0
+```
+Task 3: Use MultiQC to generate a multi-sample QC report
+
+Q3.1 Report your multiqc command [ 1 point ].
+```{bash, echo=T,eval=F}
+[zw2946@cs083 task3]$ multiqc --file-list ../task2/fastqc_files.txt
+```
+
+Q3.2a Which samples have the fewest and the most reads in the fastp outputs? Report the number of reads for each sample for each read 1 and read 2 files [ 1 point ]
+
+* Fewest
+ERR240369_1	1760723
+ERR240369_2	1760573
+* Most
+ERR234332_1	102941649
+ERR234332_2	103126006
+
+Q3.2b Which fastq file has the greatest decline in base quality with increasing sequencing cycle (“the dephasing problem”)? [ 1 point ]
+
++ ERR251551_1.filt.fP
+
+Q3.2c Two samples (four fastqs) appear to have unusually high GC content and unusually high duplication levels? Which samples are they?
+
++ SRR702073_1.filt.fP
++ SRR702073_2.filt.rP
++ SRR766045_1.filt.fP
++ SRR766045_2.filt.rP
+
+![ Figure 1. %Dups_vs_%GC_plot ](mutltiqc_%Dups_vs_%GC_plot.png){width=50%}
+
+Q3.2d Was there any residual adapter contamination in any fastq file after processing with reads with fastp [ 1 point ]?
+
++ It says "No samples found with any adapter contamination > 0.1%".
+
+
+
+
+
+
+
+
+

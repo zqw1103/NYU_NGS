@@ -1,0 +1,225 @@
+---
+title: "ngs week3 hw"
+author: Zunqiu Wang
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Task 1: Preparing the human reference genome
+
+Q1.1. Please report the contents of your job script [ 1 point ].
+```{bash, echo=T, eval=F}
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=5:00:00
+#SBATCH --mem=115GB
+#SBATCH --job-name=slurm_template
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+
+echo script begin: $(date)
+
+module purge
+
+module load samtools/intel/1.11
+
+module load bwa/intel/0.7.17
+
+samtools faidx Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa
+bwa index -a bwtsw Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa
+
+echo script completed: $(date)
+```
+Q1.2. Upon job completion, please execute ls -al in your hg38 directory and report the output [ 1 point ].
+```{bash, echo=T, eval=F}
+total 8355586
+drwxrwsr-x 2 zw2946 zw2946       4096 Feb 11 01:10 .
+drwxrwsr-x 3 zw2946 zw2946       4096 Feb 10 23:32 ..
+-rw-rwx--- 1 zw2946 zw2946 3130750435 Feb 10 23:32 Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa
+-rw-rw-r-- 1 zw2946 zw2946      18172 Feb 11 00:47 Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa.amb
+-rw-rw-r-- 1 zw2946 zw2946       7418 Feb 11 00:47 Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa.ann
+-rw-rw-r-- 1 zw2946 zw2946 3099750792 Feb 11 00:47 Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa.bwt
+-rw-rw-r-- 1 zw2946 zw2946       6793 Feb 11 00:03 Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa.fai
+-rw-rw-r-- 1 zw2946 zw2946  774937681 Feb 11 00:47 Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa.pac
+-rw-rw-r-- 1 zw2946 zw2946 1549875408 Feb 11 01:10 Homo_sapiens.GRCh38.dna_sm.primary_assembly.normalized.fa.sa
+-rw-rw-r-- 1 zw2946 zw2946       6198 Feb 11 01:10 slurm-2609353.out
+-rw-rwx--- 1 zw2946 zw2946        510 Feb 11 00:02 slurm_template.sh
+```
+
+## Task 2: Short read alignment with BWA-MEM
+
+Q2.1 Execute squeue as follows and copy the output of that command from the terminal to your homework answers (or take a screenshot) immediately after launching your job 
+
++ a bit late so that it missed JOB ID: 2690711_2
+![ Figure 1. squeue_screen_shot ](squeue_screen_shot.png){width=50%}
+Q2.2. When your job is complete, please return to the directory where you executed the script and report the output of the following command.Please report your grep command. Did your job produce 30 .sam files? What does the zero exit status mean? What if you had obtained a non-zero exit status? Were each of your job array indices completely successfully? Then, copy the outputs from the grep and find commands into your assignment answer for Q2.2 [ 1 point ].
+
+```{bash, echo=T, eval=F}
+grep _ESTATUS_ slurm-2690711*.out
+slurm-2690711_10.out:_ESTATUS_ [ bwa mem for HG00149 ]: 0
+slurm-2690711_11.out:_ESTATUS_ [ bwa mem for HG00260 ]: 0
+slurm-2690711_12.out:_ESTATUS_ [ bwa mem for NA18907 ]: 0
+slurm-2690711_13.out:_ESTATUS_ [ bwa mem for NA19137 ]: 0
+slurm-2690711_14.out:_ESTATUS_ [ bwa mem for NA19093 ]: 0
+slurm-2690711_15.out:_ESTATUS_ [ bwa mem for NA19256 ]: 0
+slurm-2690711_16.out:_ESTATUS_ [ bwa mem for NA19098 ]: 0
+slurm-2690711_17.out:_ESTATUS_ [ bwa mem for NA18870 ]: 0
+slurm-2690711_18.out:_ESTATUS_ [ bwa mem for NA18909 ]: 0
+slurm-2690711_19.out:_ESTATUS_ [ bwa mem for NA19138 ]: 0
+slurm-2690711_1.out:_ESTATUS_ [ bwa mem for NA18757 ]: 0
+slurm-2690711_20.out:_ESTATUS_ [ bwa mem for HG00151 ]: 0
+slurm-2690711_21.out:_ESTATUS_ [ bwa mem for HG00106 ]: 0
+slurm-2690711_22.out:_ESTATUS_ [ bwa mem for HG01914 ]: 0
+slurm-2690711_23.out:_ESTATUS_ [ bwa mem for HG01985 ]: 0
+slurm-2690711_24.out:_ESTATUS_ [ bwa mem for HG01986 ]: 0
+slurm-2690711_25.out:_ESTATUS_ [ bwa mem for HG02013 ]: 0
+slurm-2690711_26.out:_ESTATUS_ [ bwa mem for HG02051 ]: 0
+slurm-2690711_27.out:_ESTATUS_ [ bwa mem for HG01879 ]: 0
+slurm-2690711_28.out:_ESTATUS_ [ bwa mem for HG01880 ]: 0
+slurm-2690711_29.out:_ESTATUS_ [ bwa mem for HG01896 ]: 0
+slurm-2690711_2.out:_ESTATUS_ [ bwa mem for NA18627 ]: 0
+slurm-2690711_30.out:_ESTATUS_ [ bwa mem for HG01915 ]: 0
+slurm-2690711_3.out:_ESTATUS_ [ bwa mem for NA18591 ]: 0
+slurm-2690711_4.out:_ESTATUS_ [ bwa mem for NA18566 ]: 0
+slurm-2690711_5.out:_ESTATUS_ [ bwa mem for NA18644 ]: 0
+slurm-2690711_6.out:_ESTATUS_ [ bwa mem for NA18545 ]: 0
+slurm-2690711_7.out:_ESTATUS_ [ bwa mem for HG00113 ]: 0
+slurm-2690711_8.out:_ESTATUS_ [ bwa mem for HG00243 ]: 0
+slurm-2690711_9.out:_ESTATUS_ [ bwa mem for HG00132 ]: 0
+
+find . -name \*sam
+./NA18591/NA18591.sam
+./HG00260/HG00260.sam
+./NA18909/NA18909.sam
+./HG01985/HG01985.sam
+./HG01879/HG01879.sam
+./HG01915/HG01915.sam
+./NA18627/NA18627.sam
+./HG00106/HG00106.sam
+./NA18644/NA18644.sam
+./NA19093/NA19093.sam
+./HG01880/HG01880.sam
+./HG01986/HG01986.sam
+./NA18907/NA18907.sam
+./HG02013/HG02013.sam
+./HG00149/HG00149.sam
+./NA18757/NA18757.sam
+./NA19098/NA19098.sam
+./NA18870/NA18870.sam
+./HG02051/HG02051.sam
+./HG00243/HG00243.sam
+./NA19137/NA19137.sam
+./HG00151/HG00151.sam
+./HG00132/HG00132.sam
+./NA18545/NA18545.sam
+./HG00113/HG00113.sam
+./HG01896/HG01896.sam
+./NA19256/NA19256.sam
+./NA19138/NA19138.sam
+./HG01914/HG01914.sam
+./NA18566/NA18566.sam
+```
++ yes, 30 .sam files
++ 0 means successfully carried out command
++ yes, all array indices were completely successfully
+
+## Task 3: SAM/BAM format and Samtools
+
+Q3.1. Review the samtools view documentation use this program to extract only the header from the bam file above and answer the following [ 1 point ]
+
+Q3.1a. Report your command line
+```{bash, echo=T, eval=F}
+samtools view -H /scratch/work/courses/BI7653/hw3.2021/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam
+```
+Q3.1b. Report the @HD header tag line. What does the information in this line indicate?
+```{bash, echp=T, eval=F}
+@HD	VN:1.0	SO:coordinate
+```
++ @HD: File-level metadata 
++ VN: format version
++ SO: sorting order of alignment is by cooridinate according to RNAME(reference sequence name)
+
+Q3.2. Use samtools view to answer the following. You should review samtools view options -c, -f, and -F.
+
+Please answer the following questions including (1) your command line you used to obtain the answer and (2) the output written to your terminal [ 1 point ].
+
+Q3.2a how many unmapped reads are there in the BAM (hint: use appropriate bitwise flag(s) described in SAM/BAM lecture and see -c option in samtools view documentation)?
+```{bash, echo=T, eval=F}
+samtools view -c -f 4 /scratch/work/courses/BI7653/hw3.2021/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam
+7247
+```
+Q3.2b How many mapped reads are there in the BAM?
+```{bash, echo=T, eval=F}
+samtools view -c -F 4 /scratch/work/courses/BI7653/hw3.2021/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam
+2924253
+```
+Q3.2c What is the percentage mapping rate (total mapped reads / total reads in the alignment) for this sample?
+```{bash, echo=T, eval=F}
+samtools view -c /scratch/work/courses/BI7653/hw3.2021/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam
+2931500
+(2924253/2931500)x100=99.75%
+```
+Q3.3. A hypothetical SAM file has alignment records with the bitwise flag values that include 4, 147, 113, 99 on the decimal scale. What are the binary and hexadecimal representations of each of the these values? [ 1 point ].
+
++ 4    0100    4
++ 147    10010011    93
++ 113    01110001    71
++ 99    01100011    63    
+
+Q3.4. Picard has an online tool for determining the meanings of bitwise flag values such as those in Q3.3:
+
++ 4: read unmapped
++ 147: read paired (0x1)
+    read mapped in proper pair (0x2)
+    read reverse strand (0x10)
+    second in pair (0x80)
++ 113: read paired (0x1)
+    read reverse strand (0x10)
+    mate reverse strand (0x20)
+    first in pair (0x40)
++ 99: read paired (0x1)
+    read mapped in proper pair (0x2)
+    mate reverse strand (0x20)
+    first in pair (0x40)
+
+Q3.5. SAM specification allows for three types of alignment records. There are primary alignments, secondary alignments and supplementary alignments. Depending on the alignment software and command line used, secondary or supplementary alignments may also exist in a SAM/BAM file.
+
+BWA-MEM will typically add both primary and secondary alignments. Note that by using the -M option above we instructed bwa to set all supplementary alignments to secondary (0x100).
+
+Q3.5a How many alignments are primary?
+```{bash, echo=T, eval=F}
+samtools view -c -F 256 /scratch/work/courses/BI7653/hw3.2021/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam
+2931500
+```
+Q3.5b How many alignments are secondary?
+```{bash, echo=T, eval=F}
+samtools view -c -f 256 
+/scratch/work/courses/BI7653/hw3.2021/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam
+0
+```
+Q3.5c How many alignments are supplementary in your BAM?
+```{bash, echo=T, eval=F}
+samtools view -c -f 2048 /scratch/work/courses/BI7653/hw3.2021/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam
+0
+```
+Q3.5d What is the number of reads excluding unmapped reads, supplementary reads, secondary reads and PCR duplicates?
+```{bash, echo=T, eval=F}
+samtools view -c -F 4 -F 2048 -F 256 -F 1024 /scratch/work/courses/BI7653/hw3.2021/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam
+2885340
+```
+Q3.6. A common task is to subset a SAM/BAM to include a subset of postions on a chromosome. Use samtools view to subset the BAM from Q3.5 from chromosome 20 position 1 to 2000000 (i.e., 2 Mb) output a subsetted BAM while retaining the header. Note that to perform this type of operation, the BAM must be coordinate-sorted, which it is.
+Report the command line used to subset the BAM and the number of reads in the subset [ 1 point ].
+```{bash, echo=T, eval=F}
+samtools view -h /scratch/work/courses/BI7653/hw3.2021/HG00096.chrom20.ILLUMINA.bwa.GBR.low_coverage.20120522.bam 20:1-2000000 > subset.chr20.1-2M.bam
+
+samtools view -c subset.chr20.1-2M.bam
+95338
+```
+
+

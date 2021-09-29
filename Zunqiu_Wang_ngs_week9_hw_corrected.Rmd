@@ -1,0 +1,201 @@
+---
+title: "Zunqiu_Wang_ngs_week10_hw"
+author: "Zunqiu Wang"
+date: "3/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Task 1: Create a DESeqDataSet object
+
+Q1.1. Report the output indicating what type of object the dds variable is, how many genes, and how many samples are stored in the object? [ 1 point ]
+
++ class: DESeqDataSet 
++ genes: 28595 
++ samples: 8
+
+# Task 2: Pre-filter low count genes, normalize counts and run DESeq
+
+Q2.1 Enter dds at the console to summarize your object. Report the output for your answer and how many genes were retained after removing the low count genes [ 1 point ].
+
+class: DESeqDataSet 
+dim: 20029 8 
+metadata(1): version
+assays(4): counts mu H cooks
+rownames(20029): Pdac_HC_000007FG0000100 Pdac_HC_000007FG0000200 ...
+  Pdac_HC_chr9G0154800 Pdac_HC_chr9G0155000
+rowData names(22): baseMean baseVar ... deviance maxCooks
+colnames(8): PDAC253.htseq_count.txt PDAC282.htseq_count.txt ...
+  PDAC306.htseq_count.txt PDAC318.htseq_count.txt
+colData names(2): condition sizeFactor
+
++ 20029 genes retained
+
+# Task 3: Analyze DGE data
+
+Q3.1 Include the hierarchical clustering result, your plotPCA command, and the PCA plot for you answer [ 1 point ].
+
+```{r, echo=T, eval=F}
+dists <- dist(t(assay(rld)))
+hclust(dists)
+```
++ Call:
+hclust(d = dists)
+
+Cluster method   : complete 
+Distance         : euclidean 
+Number of objects: 8 
+
+<center>
+
+![hcluster](week10_task2_hcluster.png){width=50%}
+
+</center>
+
+```{r, echo=TRUE, eval=F}
+plotPCA(rld, intgroup=c("condition"))
+```
+<center>
+
+![PCA](week10_task2_PCA.png){width=50%}
+
+</center>
+
+Q3.2a Do the samples cluster by sugar composition phenotype in the hierarchical clustering? Explain.
+
++ mostly yes
++ exception is one outlier sample PDAC266 from low sucrose group with abnormal long distance
++ PDAC253, which originates from high sucrose group, is clustered within low sucrose group
+
+Q3.2b Does the PCA separate samples by sugar composition? If so, on which axis?
+
++ c
+
+3.2c In many contexts, the treatment will induce large effects on the transcriptome that often cause biological replicates from the same treatment to cluster together. Another factor that could cause samples to cluster together is batch effects. Which of the following are potential sources of batch effects in RNA-seq analysis?
+
++ f
+
+Q3.2d Without any additional information about how the experiment was conducted, do you see any evidence of a batch effect? Why or why not?
+
++ PDAC253(high sucrose) is somehow incorrectly clustered within low sucrose group; PDAC266 is abnormally positioned out of clustering group
++ sample maybe contaminated, or actually from high sucrose group(incorrectly assigned to the wrong group)
++ need more info
+
+
+Q3.3 Read the section “More information on results columns” of the DESeq2 vignette and describe three quality control steps that are automatically conducted by DESeq to drop from consideration genes with suspect, or problematic, p-values How many genes were impacted by the default independent filtering? [ 1 point ].
+
++ within a row all samples have zero counts sets pvalue to NA
++ samples have extreme count outlier sets pvalue to NA
++ low mean normalized count only affects padj, setting to NA
+
+metadata(res)$filterThreshold
+13.57143% are affected
+
+```{r, echo=T, eval=F}
+sum(is.na(resOrdered$pvalue))
+```
++ 199 genes are filtered in pvalue(NA)
+
+Q3.4a. Report the table of results for the three candidate genes. For each of the candidate genes, which sugar-type (high sucrose or low sucrose) has higher expression? What is fold-change expressed on the decimal scale (convert from log2 to linear scale)? [ 1 point ]
+
+```{r, echo=T, eval=F}
+resOrdered_df_genes_intest <- resOrdered[ row.names(resOrdered) %in% c('Pdac_HC_chr14G0022900','Pdac_HC_chr14G0023100','Pdac_HC_chr14G0028200'), ]
+```
+```{r,echo=T, eval=T}
+read.table("3 gene results table.csv", header = T, sep = " ")
+```
+log2 fold change (MLE): condition lowSucrose vs highSucrose 
+Wald test p-value: condition lowSucrose vs highSucrose
+
++ from contrast argument and results table, I deduce that it is log2(lowSucrose/highSucrose)
++ Pdac_HC_chr14G0023100: low Sucrose, 50.3
++ Pdac_HC_chr14G0022900: low Sucrose, 1009
++ Pdac_HC_chr14G0028200: high Sucrose, 1.347
+
+Q3.4b Sometimes its useful to report the normalized counts for each gene as a figure or table. For your answer, report the normalized counts for each candidate gene as a table [ 1 point ].
+
+```{r, echo=TRUE,eval=T}
+read.table("Pdac_HC_chr14G0028200_counts_table.csv", header = T, sep = " ")
+
+read.table("Pdac_HC_chr14G0022900_counts_table.csv", header = T, sep = " ")
+
+read.table("Pdac_HC_chr14G0023100_counts_table.csv", header = T, sep = " ")
+```
+## I used lfcshrink with type='apeglm' for following plot and analysis*****
+
+Q3.5 Use the plotMA function to generate MA plots for the res and res.shrunk objects. Report the plots in your assignment document and explain your observations. Why it is appropriate to report the shrunken estimates. [ 1 point ].
+
+```{r, echo=T,eval=F}
+plotMA(res, ylim=c(-4,4))
+abline(h=c(-1,1), col="dodgerblue", lwd=2)
+```
+<center>
+
+![MA unshrunken](MA_unshrunken.png){width=50%}
+
+</center>
+
+```{r, echo=T,eval=F}
+plotMA(res.shrunk, ylim=c(-4,4))
+abline(h=c(-1,1), col="dodgerblue", lwd=2)
+```
+<center>
+
+![MA shrunken](MA_shrunken.png){width=50%}
+
+</center>
+
++ Abundance of scatter for very low mean of normalized counts in unshrunken plot that exibits very high fold changes(overestimated); while fold change exhibits much smaller estimate after shrinkage
++ Not interested in very lowly expressed genes, which could cause biased analysis and interpretation
+
+
+# Task 4. The multiple testing problem
+
+Q4.1 Subset the table with “shrunken” log2 fold-change estimates to include only the candidate genes and answer the following [ 1 point ]:
+
+Q4.1a. Report your results from the lfcShrink output table for the candidate genes.
+```{r, echo=T, eval=F}
+res.shrunkOrdered_3_genes.table <- res.shrunkOrdered[ row.names(res.shrunkOrdered) %in% c('Pdac_HC_chr14G0022900','Pdac_HC_chr14G0023100','Pdac_HC_chr14G0028200'), ]
+write.table(res.shrunkOrdered_3_genes.table, file = "/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/WK9/res.shrunkOrdered_3_genes.table.csv")
+```
+```{r, echo=T, eval=T}
+read.table("res.shrunkOrdered_3_genes.table.csv", header = T, sep = " ")
+```
+
+Q4.1b. Statisticians make the distinction between statistically signficant and biologically significant. Using a criterion that a statistically differentially expressed gene must also show at least a two-fold change in expression (on linear scale) to be biologically meaningful, which genes do you consider to be differentially expressed? Please specify the gene(s), the FDR threshold you applied.
+
+```{r, echo=T, eval=F}
+summary(res.shrunkOrdered_3_genes.table) 
+res.shrunkOrdered_3_genes.table[, "log2FoldChange">= 1]
+keepabs <- abs(res.shrunkOrdered_3_genes.table$log2FoldChange) >=1
+keepabs.df <- as.data.frame(res.shrunkOrdered_3_genes.table[keepabs,])
+write.table(keepabs.df, file = "/Users/zunqiuwang/Dropbox/NYU_Bioinfo/NGS/WK9/keepabs.df.csv")
+```
+out of 3 with nonzero total read count
+adjusted p-value < 0.1
+LFC > 0 (up)       : 2, 67%
+LFC < 0 (down)     : 0, 0%
+outliers [1]       : 0, 0%
+low counts [2]     : 0, 0%
+(mean count < 4)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+```{r, echo=T, eval=T}
+read.table("keepabs.df.csv", header = T, sep = " ")
+```
++ after applying selected criteria(FDR<0.05, log2FoldChange>1), meaning 2-fold change in expression on linear scale, only 2 genes:
+Pdac_HC_chr14G0023100
+Pdac_HC_chr14G0022900
+are considered to be DGE.
+
+Q4.1c Which of the candidate genes do you think could be responsible for the sugar composition trait on the chromosome 14 sugar QTL?
+
++ Conclusion:  Possibly, either of Pdac_HC_chr14G0023100 or Pdac_HC_chr14G0022900 or both could contribute to sugar composition trait. large log2 fold change and High expression leads to low sucrose. Most importantly, its p value/adjusted p value reveals significance.
+
+
+
+
+

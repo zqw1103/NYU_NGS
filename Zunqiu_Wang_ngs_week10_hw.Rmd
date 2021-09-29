@@ -1,0 +1,208 @@
+---
+title: "Zunqiu_Wang_ngs_week10_hw"
+author: "Zunqiu Wang"
+date: "4/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Task1
+
+Q1.1. A key consideration when conducting any type of RNA-seq analysis is the percentage of reads that aligned. The Salmon approach may have a low mapping rate if the kmer length is too stringent (kmer matches between read and transcript are too long).
+
+Review the logging output of Salmon. Report the mapping rates for each sample produced by Salmon. Do you consider these to be too low? If so, how might you re-run Salmon to increase the mapping rates (see Salmon website above)? [ 1 point ]
+
++ PDAC253:8.71844%
++ PDAC266: 11.151%
++ PDAC273: 22.8452%
++ PDAC282: 15.9158%
++ PDAC286: 11.8775%
++ PDAC306: 8.93615%
++ PDAC316: 17.2182%
++ PDAC318: 12.1166%
++ yes, quite low. 
++ Decrease kmer index to improve sensitivity
+
+1.2. Choose a sample and review the output file “quant.sf”. What are the columns in the output? Please provide an explanation of each column (see “Salmon Output File Formats” in “Output” section of documentation page referenced above).
+
++ Name: name of target transcript
++ Length: nucleotide length of target transcript
++ EffectiveLength: computed effective length by taking all factors into consideration of affecting the probability fragments from a transcript
++ TPM: estimate of abundance of transcript in units Transcripts Per Million
++ NumReads: estimate of number of reads mapped to transcript
+
+Q1.3a. What library type did Salmon infer for the input reads?
+ + b("ISF" and "ISR") but expected format istead is "IU"(a)
+
+Q1.3b What library type do you think Salmon would have inferred if the date palm RNA-seq had been a stranded library preparation? Please use the two-letter syntax reported in the Salmon documentation.
+
++ b
++ d
+
+
+Q1.3c Explain in your own words what is the difference between a stranded (=“strand-specific”) and unstranded library?
+
++ stranded means when doing library preparation the orientation("+" or "-") of the DNA strand is specified and we could tell which RNA strand is transcribed from 
+
+Q1.3d Which do you think is typically preferred for performing DGE analysis? Why?
+
++ There are lots of overlapping transcription (gene/non coding RNA) so it is critical to tell which strand the RNA originated from
++ preserve information about sense strand
+
+# Task2: Run tximport to create a DESeq2DataSet
+
+Q2.1. A nice property of TPMs is that TPMs for alternative transcripts can be added to get the TPM value for all transcripts in a gene. Why does DESeq2 need to convert TPMs to gene counts instead of just using the gene-level TPMs directly in the statistical analysis [ 1 point ]?
+
++ TPM is susceptible to transcripts length effect and also affected by ambiguous reads
++ counts are almost poisson distribution while variance estimate of abundance of TPM is dependent on effective length  
++ TPM is usually conducted for evaluation of within sample(replicates) comparison 
+
+# TAsk3: Run DESeq2
+
+Q3.1. Please report the commands you executed to complete your analysis [ 1 point ].
+
+```{r, echo=TRUE, eval=F}
+BiocManager::install("tximport")
+library(tximport)
+
+sample_names <- c('PDAC253','PDAC282','PDAC286','PDAC316','PDAC266','PDAC273','PDAC306','PDAC318')
+sample_condition <- c(rep('highSucrose',4),rep('lowSucrose',4))
+
+files <- file.path(sample_names,paste(sample_names,".transcripts_quant",sep=""),'quant.sf')
+names(files) <- sample_names
+
+tx2gene <- read.table("Pdac_Barhee_chr_unan_180126_maker_HC.tx2gene",header=F,sep=",")
+
+all(file.exists(files))
+
+txi <- tximport(files, type="salmon", tx2gene=tx2gene)
+
+samples <- data.frame(sample_names=sample_names,condition=sample_condition)
+row.names(samples) <- sample_names
+
+# create DastaSet
+library("DESeq2")
+ddsTxi <- DESeqDataSetFromTximport(txi,
+                                   colData = samples,
+                                   design = ~ condition)
+class(ddsTxi)
+
+# remove genes with 10 or fewer reads
+head(counts(ddsTxi))
+keep <- rowSums(counts(ddsTxi)) >= 10
+ddsTxi <- ddsTxi[keep, ]
+ddsTxi #check genes left
+
+# run DeSeq
+ddsTxi <- DESeq(ddsTxi)
+class(ddsTxi) # Determine the type of object
+ddsTxi
+
+# results()
+res <- results(ddsTxi, contrast = c('condition','lowSucrose','highSucrose') )
+class(res) 
+head(res)
+resOrdered <- res[order(res$padj), ]
+head(resOrdered, 10)
+
+# lfcshrink
+res.shrunk <- lfcShrink(ddsTxi, contrast = c('condition','lowSucrose','highSucrose'), type = "ashr")
+res.shrunkOrdered <- res.shrunk[order(res.shrunk$padj),]
+head(res.shrunkOrdered)
+```
+
+Q3.2.Which pattern (a-e) do you observe in your histogram? What does this suggest about the impact of sugar composition on gene expression? Please include your p-value histogram in your answer. [ 1 point ].
+
++ e
++ It suggests large class of differentially expressed genes between low sucrose and high sucrose.
+
+<center>
+
+![p_value_histogram_after_shrink](p_value_histogram_after_shrunk.png){width=50%}
+
+</center>
+
+Q3.3. Report the results table for the top 10 differentially expressed genes according to adjusted p-value (i.e., FDR). Then, for each of the three genes below Do you consider the gene(s) to be differentially expressed, both statistically and biologically in terms of log fold-change? Why or why not [ 1 point ].
+
+```{r, echo=T, eval=T}
+#top10 genes
+library(gt)
+library(dplyr)
+
+tb1 <- read.table("res.shrunkOrdered_top_10.csv", header = T, sep = " ")
+tb1 %>% gt() %>% tab_header(title="top 10 differentially expressed genes")
+
+#3 genes of interests
+tb2 <- read.table("res.shrunkOrdered_df_genes_interest.csv", header = T, sep = " ") 
+tb2 %>% gt() %>% tab_header(title="3 DEG")
+```
++ set FDR as 0.05 and lfc > 1 as biologically significant( two-fold change in expression (on linear scale))
++ Pdac_HC_chr14G0022900 (cell wall invertase enzyme): DGE both statistically and biologically
+
++ Pdac_HC_chr14G0023100 (cell wall invertase enzyme): DGE both statistically and biologically
+
++ Pdac_HC_chr14G0028200 (alkaline/neutral invertase enzyme): DGE neither statistically and biologically
+
+Q3.4. Now generate three dispersion-mean plots for all three methods (‘parametric’,‘local’ and ‘mean’) and compare. Is there a difference? (see ?estimateDispersions “fitType” argument). In order to do so, you need to call the estimateDisersions + plotDispEsts functions 3 times (each time will update dds object with new dispersion estimates for the indicated method)
+
+Show your code and plots
+
+```{r, echo=T, eval=F}
+stimateDispersions(ddsTxi, fitType= "parametric")
+png("disp_para.png")
+plotDispEsts(ddsTxi)
+dev.off()
+```
+<center>
+
+![disp_para](disp_para.png){width=50%}
+
+</center>
+
+```{r, echo=T, eval=F}
+stimateDispersions(ddsTxi, fitType= "local")
+png("disp_local.png")
+plotDispEsts(ddsTxi)
+dev.off()
+```
+
+<center>
+
+![disp_local](disp_local.png){width=50%}
+
+</center>
+
+```{r, echo=T, eval=F}
+stimateDispersions(ddsTxi, fitType= "mean")
+png("disp_mean.png")
+plotDispEsts(ddsTxi)
+dev.off()
+```
+<center>
+
+![disp_mean](disp_mean.png){width=50%}
+
+</center>
+
+What is the relationship of genewise dispersions and the mean of normalized counts in each of your plots? Do you see a difference among the three methods? Should the fitType be changed from the default “parametric” method as run by the DESeq wrapper function? [ 1 point ]
+
++ The decreasinng dispersion estimate over mean of normalized counts
++ No difference
++ In this case, no need to change from default fitType
+
+
+Q3.5. In Week 8 and 9, you ran DGE analysis with an exon union approach and this week rans DGE using a Salmon + tximport + DESeq2 workflow. What are three reasons why the Salmon + tximport + DESeq2 workflow may be preferred over the STAR + htseq-count + DESeq2 workflow? [ 1 point ]
+
++ Salmon is alignment free method so saving the intermediate step generating SAM/BAM files to save memory and disk space as well as increase speed reaveling the accuracy in terms of bias correction
++ TPM allows for alternative transcripts taken into considerations and solve the problem where multimapping reads and reads overlapping multiple features discarded in htseq-count thus more consistent than counting across samples
++ Salmon is de novo assembly whole STAR is splice aware aligner
++ Salmon + tximport + DESeq2 is usually conducted for the purpose of transcript level RNA seq DGE while STAR + htseq-count + DESeq2 is biased due to assumption on the same isoform transcript abundance/usage across treatments
++ transcript/isoform switch analysis is important in characterizing pathogenesis where same gene with different functions due to isoform existence
+
+
+
+
+

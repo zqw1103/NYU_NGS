@@ -1,0 +1,134 @@
+---
+title: "Zunqiu_Wang_ngs_wk12_hw"
+author: "Zunqiu Wang"
+date: "4/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Task 1: MACS2 peaks and FRiP scores
+
+Q1.1a: How many peaks were called by MACS2 for each of the two Androgren Receptor ChIP-Seq samples in your MACS2 outputs from last week?
+
+```{bash, echo=T, eval=F}
+wc -l SRR7207017_peaks.narrowPeak
+20783 SRR7207017_peaks.narrowPeak
+wc -l SRR7207011_peaks.narrowPeak
+2001 SRR7207011_peaks.narrowPeak
+```
+
+Q1.1b: What is the mean peak width for each sample? Show the R command (or other approach) you used to arrive at your answer.
+
+```{r, echo=T, eval=T}
+SRR7207017.df <- read.table("SRR7207017_peaks.narrowPeak", header = F, sep = "\t", stringsAsFactors = F)
+SRR7207017.df$width <- SRR7207017.df$V3-SRR7207017.df$V2
+SRR7207017.mean <- mean(SRR7207017.df$width)
+SRR7207017.mean
+
+SRR7207011.df <- read.table("SRR7207011_peaks.narrowPeak", header = F, sep = "\t", stringsAsFactors = F)
+SRR7207011.df$width <- SRR7207011.df$V3-SRR7207011.df$V2
+SRR7207011.mean <- mean(SRR7207011.df$width)
+SRR7207011.mean
+```
+
+Q1.1c: What is meant by the “signalValue” in column 7?
+
++ Measurement of overall (usually, average) enrichment for the region.
+
+Q1.2. The Fraction of Reads in Peaks (FRiP) score is a simple measure of library quality that is useful in identifying low-quality libraries from a set of ChIP-seq libraries (i.e., it is useful in a comparative context). The FRiP score is calculated as implied by the name and is simply the number of reads overlapping called peaks divided by the total number of reads.
+
+```{bash, echo=T, eval=F}
+module load bedtools/intel/2.29.2
+bedtools intersect -a /scratch/zw2946/ngs.week11/task3/SRR7207011/SRR7207011.filtered.sorted.bam -b /scratch/zw2946/ngs.week11/task4/SRR7207011_peaks.narrowPeak | samtools view -c
+69002
+module load samtools/intel/1.12
+samtools view -c /scratch/zw2946/ngs.week11/task3/SRR7207011/SRR7207011.filtered.sorted.bam
+22517898
+```
++ 69002/22517898=0.003064318
+
+```{bash, echo=T, eval=F}
+bedtools intersect -a /scratch/zw2946/ngs.week11/task3/SRR7207017/SRR7207017.filtered.sorted.bam -b /scratch/zw2946/ngs.week11/task4/SRR7207017_peaks.narrowPeak | samtools view -c
+877004
+samtools view -c /scratch/zw2946/ngs.week11/task3/SRR7207017/SRR7207017.filtered.sorted.bam
+20702991
+```
++ 877004/20702991=0.04236122
+
++ SRR7207017 passed
++ SRR7207011 fail to pass
+
+# Task 2: QC analysis of H3K36me3 ChIP-seq with the BioConductor ChIC package
+
+Q2.1a.Include the cross-corrleation profile plot in your answers file [ 1 point ].
+
+<center>
+
+![Cross Correlation of Chip Sample](CrossCorrelation_sample.png){width=85%}
+
+</center>
+
+
+Q2.1b Select all that are true statements about the cross-correlation profile [ 1 point ]:
+
++ b d f
+
+Q2.2a What is the NSC value for the ChIP sample?
+
++ 1.447
+
+Q2.2b What is the RSC values for the ChIP sample?
+
++ 1.065
+
+Q2.2c Do either of the metrics incorporate the “shaddow peak” height in how they are calculated? Which one(s)?
+
++ yes, phantom pick was incorporated in RSC 
+
+Q2.2d Landt et al. 2012 (see “Cross-correlation Analysis”) provide minimum NSC and RSC values for libraries with acceptable signal-to-noise ratios. What are these minimum values and does this library pass ENCODE standards for quality control? Select one:
+
++ f
+
+Q2.3 Now answer the following for the input sample. Be sure to include the cross-correlation profile figure for the input sample in your answer [ 1 point ].
+
+<center>
+
+![Cross Correlation of input](CrossCorrelation_input.png){width=85%}
+
+</center>
+
+Q2.3a What steps are typically included/excluded in the preparation of the control/input sample? (see Week 11 pre-recorded video). Select all true statements.
+
++ includes a,b,d,e
++ excludes c
+
+Q2.3b What are the NSC and RSC values for the input sample? Would this library pass the quality control standards for the ENCODE project if it were a ChIP sample?
+
++ NSC:1.038
++ RSC:0.208
++ No, both values fall under threshold
+
+Q2.4. Imagine the input library is also a ChIP sample (not a control). Which of the following is the best interpretations of the fingerprint plot [ 1 point ].
+
++ b
+
+
+
+
+
+
+
+
+
+
+
+
+
+Q2.5. What is shown in the TSS plot? Please provide a detailed interpretation of the plot. Based on the TSS profile plot, describe where are H3K36me3 modifications typically located relative to protein coding genes. [ 1 point ]
+
++ there are two peaks upstream and downstream around TSS (protein coding genes reanscription start site) meaning strong enrichment of H3K36me3 (histone marks)
++ a dip a little upstream of TSS corresponds to nucleosome-depleted site
++ input didnt have any peaks

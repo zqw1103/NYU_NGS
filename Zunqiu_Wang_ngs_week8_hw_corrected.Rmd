@@ -1,0 +1,171 @@
+---
+title: "Zunqiu_Wang_ngs_week8_hw"
+author: Zunqiu Wang
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Task1
+
+Q1.1. Report the contents of your array job script and the job id on Greene [ 3 points ].
+
+```{bash, echo=T, eval=F}
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=8:00:00
+#SBATCH --mem=24GB
+#SBATCH --job-name=STAR_&_samtools_index
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=zw2946@nyu.edu
+#SBATCH --array=1-8
+
+module purge
+
+echo script begin: $(date)
+
+# Path to 3-column (tab-delimited) table with sample name, fastq 1 file name, and fastq 2 file name
+
+table=/scratch/work/courses/BI7653/hw8.2021/fastqs.txt
+
+# Define sample, fq1 and fq2 variables for current array index
+# note: SLURM_ARRAY_TASK_ID environmental variable will contain a single value corresponding to the current array index
+
+line="$(head -n $SLURM_ARRAY_TASK_ID $table | tail -n 1)"
+sample="$(printf "%s" "${line}" | cut -f1)"
+fq1="$(printf "%s" "${line}" | cut -f2)"
+fq2="$(printf "%s" "${line}" | cut -f3)"
+
+# Print to standard out the array index and the sample name
+
+echo Processing array index: $SLURM_ARRAY_TASK_ID sample: $sample
+
+# Make a directory for the sample and cd to it
+
+mkdir $sample
+cd $sample
+
+# load star module
+
+module load star/intel/2.7.6a
+
+# Define directory where fastqs are located
+fqdir=/scratch/work/courses/BI7653/hw8.2021/fastqs
+
+#running STAR
+
+STAR --genomeDir /scratch/work/courses/BI7653/hw8.2021/STAR.genome \
+--runThreadN $SLURM_CPUS_PER_TASK \
+--readFilesIn $fqdir/$fq1 $fqdir/$fq2 \
+--outFileNamePrefix $sample \
+--outSAMtype BAM SortedByCoordinate \
+--readFilesCommand zcat \
+--outTmpDir "${SLURM_JOBTMP}"/"${SLURM_ARRAY_TASK_ID}" \
+--limitBAMsortRAM 20000000000
+
+# Print the exit status of the fastp command and the time the script ended to standard out
+echo _ESTATUS_ [ STAR for $sample ]: $?
+
+# Purge star and load samtools module
+
+module purge
+module load samtools/intel/1.11
+
+# index output BAM
+
+samtools index ${sample}Aligned.sortedByCoord.out.bam
+
+echo _ESTATUS_ [ samtools for $sample ]: $?
+
+echo _END_ [ STAR.slurm for $sample ]: $(date)
+```
+jobid: 4054798  
+
+Q1.2a Review the file “Log.final.out” for sample PDAC253 and report the following [ 1 point ]:
+
+The number of uniquely mapped reads: 5091972
+The percentage of uniquely mapped reads: 14.89%
+The total number of input reads: 34202682
+
+Q1.2b It is common to only work with uniquely mapped reads (and not include multiply-mapped reads in downstream analysis). If you want to make sure STAR output only uniquely mapped reads, how might you do this? What is the default mapping quality assigned in the SAM alignment records for uniquely mapped reads? Hint: See STAR documentation sections 15.13 and 15.16 [ 1 point ]
+
++ set STAR option --outFilterMultimapNmax 1
++ 255
+
+Q1.2c The number and percentage of reads mapped to too many loci is very high for this library. Provide a hypothesis for this observation and how you might go about evaluating it. [ 1 point ]
+
++ genes and elements have high sequence similarity(repeats)/overlapping features
++ or there is contamination or rRNA involved
++ increase threshold in the STAR option: --outFilterMultimapNmax
++ default is 10 and it is quite low, could change to 20?
+
+Q1.3. Report the first 20 lines of the header for one output BAM (using samtools view). Then answer is your BAM coordinate-sorted? Please include your samtools view command in your answer for full credit. [ 1 point ]?
+
+```{bash, echo=T, eval=F}
+samtools view -h PDAC253Aligned.sortedByCoord.out.bam | head -n 20
+@HD	VN:1.4	SO:coordinate
+@SQ	SN:chr1	LN:40814151
+@SQ	SN:chr2	LN:29301675
+@SQ	SN:chr3	LN:24755689
+@SQ	SN:chr4	LN:33281721
+@SQ	SN:chr5	LN:18619412
+@SQ	SN:chr6	LN:18596258
+@SQ	SN:chr7	LN:16639383
+@SQ	SN:chr8	LN:31698078
+@SQ	SN:chr9	LN:22757669
+@SQ	SN:chr10	LN:15825318
+@SQ	SN:chr11	LN:29487722
+@SQ	SN:chr12	LN:14769854
+@SQ	SN:chr13	LN:12891333
+@SQ	SN:chr14	LN:24628924
+@SQ	SN:chr15	LN:12030914
+@SQ	SN:chr16	LN:13553361
+@SQ	SN:chr17	LN:16126437
+@SQ	SN:chr18	LN:9812533
+@SQ	SN:000007F	LN:4728343
+```
++ Yes
+
+Q1.4. Recall from the SAM format specification that mapping quality of a read alignment is a PHRED-scaled probability that the read is aligned in error. However, this quantity is difficult to estimate and different alignment tools use different rules to assign mapping quality scores to aligned reads. In many cases, these qualities are only loosely correlated with an accurate PHRED score.
+
+What mapping quality scores are present in the alignment for PDAC253 (note: you may need to convert BAM to SAM)? What does each of the observed mapping quality mean? [ 2 points ]
+
+```{bash, echo=T, eval=F}
+samtools view PDAC253Aligned.sortedByCoord.out.bam > PDAC253Aligned.sortedByCoord.out.sam
+# to check MAPQ
+cut -f 5 PDAC253Aligned.sortedByCoord.out.sam | sort | uniq
+# to check MAPQ for PHRED score calculated by int(-10*log10(11/Nmap)) and Nmap indicating # of loci mapped to 
+cut -f 5, 12 PDAC253Aligned.sortedByCoord.out.sam | sort | uniq
+
+0	NH:i:10
+0	NH:i:5
+0	NH:i:6
+0	NH:i:7
+0	NH:i:8
+0	NH:i:9
+1	NH:i:3
+1	NH:i:4
+255	NH:i:1
+3	NH:i:2
+```
++ 255: uniquely mapped
++ 1: mapped to 3 or 4 loci
++ 0: multiply mapped read(very large number of loci) such as 5 to 10 loci
++ 3: mapped to 2 loci
+
+Q1.5. Imagine that you are working on a pair of recently duplicated genes and want to independently test for differential gene expression for the duplicated genes with the RNA-seq data in this assignment. Do you think this is possible? What factor(s) should be considered in order to do so? [ 1 point ]
+
++ Yes and no
++ source of duplicated genes: PCR during library preparation where same fragment is amplified may be due to small RNA input
++ can be only detected in PE read, and will be discounted by filtering according to SAM flags(since usually only study uniquely mapped reads)
++ conventional way of downstream DGE analysis dont include duplicated genes due to prior removal by tools
++ If not removed, differential expression of one gene will cause duplicated gene to appear NOT differentially expressed
++ If one gene expression is upregulated and duplicated gene is downregulated in DGE, overall maybe no DGE as a result
++ If there is a way to retain one copy of genes so that it could be further tested for DGE
+
+-  If two genes are recently duplicated ( A and A'), then they have identical sequences in the reference genome. Therefore, any read originating from gene A or A' will not map uniquely and it is impossible to know if the read maps to A or A' In this circumstance it is impossible to independently test for differential expression between say treatment and control of A and A'. However, it is also possible that the recently duplicated genes have diverged sufficiently (in terms of mutational differences) that reads will map uniquely to each (or at least some of the reads will). So the primary consideration is whether genes A and A' have diverged sufficiently in sequence such that reads will map uniquely.
